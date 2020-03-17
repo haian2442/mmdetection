@@ -14,22 +14,9 @@ from .registry import DATASETS
 
 
 @DATASETS.register_module
-class CocoDataset(CustomDataset):
+class MCarCocoDataset(CustomDataset):
 
-    CLASSES = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
-               'train', 'truck', 'boat', 'traffic_light', 'fire_hydrant',
-               'stop_sign', 'parking_meter', 'bench', 'bird', 'cat', 'dog',
-               'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe',
-               'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-               'skis', 'snowboard', 'sports_ball', 'kite', 'baseball_bat',
-               'baseball_glove', 'skateboard', 'surfboard', 'tennis_racket',
-               'bottle', 'wine_glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
-               'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
-               'hot_dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-               'potted_plant', 'bed', 'dining_table', 'toilet', 'tv', 'laptop',
-               'mouse', 'remote', 'keyboard', 'cell_phone', 'microwave',
-               'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock',
-               'vase', 'scissors', 'teddy_bear', 'hair_drier', 'toothbrush')
+    CLASSES = ('car')
 
     def load_annotations(self, ann_file):
         self.coco = COCO(ann_file)
@@ -64,7 +51,7 @@ class CocoDataset(CustomDataset):
         return valid_inds
 
     def _parse_ann_info(self, img_info, ann_info):
-        """Parse bbox and mask annotation.
+        """Parse bbox.
 
         Args:
             ann_info (list[dict]): Annotation info of an image.
@@ -72,13 +59,11 @@ class CocoDataset(CustomDataset):
 
         Returns:
             dict: A dict containing the following keys: bboxes, bboxes_ignore,
-                labels, masks, seg_map. "masks" are raw annotations and not
-                decoded into binary masks.
+                labels.
         """
         gt_bboxes = []
         gt_labels = []
         gt_bboxes_ignore = []
-        gt_masks_ann = []
 
         for i, ann in enumerate(ann_info):
             if ann.get('ignore', False):
@@ -92,7 +77,6 @@ class CocoDataset(CustomDataset):
             else:
                 gt_bboxes.append(bbox)
                 gt_labels.append(self.cat2label[ann['category_id']])
-                gt_masks_ann.append(ann['segmentation'])
 
         if gt_bboxes:
             gt_bboxes = np.array(gt_bboxes, dtype=np.float32)
@@ -106,14 +90,10 @@ class CocoDataset(CustomDataset):
         else:
             gt_bboxes_ignore = np.zeros((0, 4), dtype=np.float32)
 
-        seg_map = img_info['filename'].replace('jpg', 'png')
-
         ann = dict(
             bboxes=gt_bboxes,
             labels=gt_labels,
-            bboxes_ignore=gt_bboxes_ignore,
-            masks=gt_masks_ann,
-            seg_map=seg_map)
+            bboxes_ignore=gt_bboxes_ignore)
 
         return ann
 
@@ -173,24 +153,24 @@ class CocoDataset(CustomDataset):
                     data['category_id'] = self.cat_ids[label]
                     bbox_json_results.append(data)
 
-                # segm results
-                # some detectors use different scores for bbox and mask
-                if isinstance(seg, tuple):
-                    segms = seg[0][label]
-                    mask_score = seg[1][label]
-                else:
-                    segms = seg[label]
-                    mask_score = [bbox[4] for bbox in bboxes]
-                for i in range(bboxes.shape[0]):
-                    data = dict()
-                    data['image_id'] = img_id
-                    data['bbox'] = self.xyxy2xywh(bboxes[i])
-                    data['score'] = float(mask_score[i])
-                    data['category_id'] = self.cat_ids[label]
-                    if isinstance(segms[i]['counts'], bytes):
-                        segms[i]['counts'] = segms[i]['counts'].decode()
-                    data['segmentation'] = segms[i]
-                    segm_json_results.append(data)
+                # # segm results
+                # # some detectors use different scores for bbox and mask
+                # if isinstance(seg, tuple):
+                #     segms = seg[0][label]
+                #     mask_score = seg[1][label]
+                # else:
+                #     segms = seg[label]
+                #     mask_score = [bbox[4] for bbox in bboxes]
+                # for i in range(bboxes.shape[0]):
+                #     data = dict()
+                #     data['image_id'] = img_id
+                #     data['bbox'] = self.xyxy2xywh(bboxes[i])
+                #     data['score'] = float(mask_score[i])
+                #     data['category_id'] = self.cat_ids[label]
+                #     if isinstance(segms[i]['counts'], bytes):
+                #         segms[i]['counts'] = segms[i]['counts'].decode()
+                #     data['segmentation'] = segms[i]
+                #     segm_json_results.append(data)
         return bbox_json_results, segm_json_results
 
     def results2json(self, results, outfile_prefix):
@@ -390,5 +370,3 @@ class CocoDataset(CustomDataset):
         if tmp_dir is not None:
             tmp_dir.cleanup()
         return eval_results
-
-
